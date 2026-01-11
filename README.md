@@ -1,4 +1,4 @@
-# FreeRTOS Wi-Fi Driver Simulation (Dual-Task)
+# FreeRTOS Wi-Fi Driver Simulation
 
 這是一個基於 FreeRTOS 的多執行緒 Wi-Fi 驅動程式模擬專案。
 本專案模擬了 **Host Driver (驅動層)** 與 **Firmware (韌體層)** 之間的互動，並實作了生產者-消費者模型 (Producer-Consumer Model)。

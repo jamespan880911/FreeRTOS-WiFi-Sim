@@ -5,7 +5,6 @@
  *  Design Goal:
  *    - 模擬 Driver / Firmware 雙向資料流
  *    - 各自使用不同鎖 (xTxMutex / xRxMutex)
- *    - 維持 SDIO 抽象層乾淨，方便報告邏輯層與鎖控制
  ********************************************************************/
 
 #include "FreeRTOS.h"
