@@ -4,7 +4,6 @@
 #include "task.h"
 #include "timers.h"
 
-/* ===== 必要：靜態配置 Idle/Timer 任務的記憶體 ===== */
 #if ( configSUPPORT_STATIC_ALLOCATION == 1 )
 
 static StaticTask_t xIdleTCB;
@@ -32,9 +31,8 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer,
 }
 #endif /* configSUPPORT_STATIC_ALLOCATION */
 
-/* ===== 選用 hook（這份 FreeRTOSConfig.h 啟用了）：給最小實作 ===== */
-void vApplicationIdleHook( void ) { /* 無事可做時 CPU 休息 */ }
-void vApplicationTickHook( void ) { /* 每個 tick 呼叫，避免阻塞/重活太久 */ }
+void vApplicationIdleHook( void ) { /* 沒事做時 CPU 休息 */ }
+void vApplicationTickHook( void ) { /* 每個 tick 呼叫，避免block太久 */ }
 void vApplicationDaemonTaskStartupHook( void ) { /* Timer/daemon task 啟動後一次 */ }
 
 void vApplicationMallocFailedHook( void )
@@ -44,7 +42,6 @@ void vApplicationMallocFailedHook( void )
     abort();
 }
 
-/* FreeRTOS 的 configASSERT 會呼叫這個；印出檔名與行號後結束 */
 void vAssertCalled( const char *file, unsigned long line )
 {
     printf("ASSERT: %s:%lu\n", file, line);
