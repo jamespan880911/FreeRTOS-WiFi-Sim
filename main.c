@@ -5,13 +5,11 @@
 #include <string.h>
 #include <stdint.h>
 
-/* ========================= 系統參數 ========================= */
 #define RING_SIZE         8
 #define WIFI_TX_PERIOD    300
 #define FW_PROC_TIME      150
 #define FW_IDLE_TIMEOUT   500
 
-/* ========================= 資料結構 ========================= */
 typedef struct {
     uint8_t  valid;
     uint32_t len;
