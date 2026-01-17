@@ -1,13 +1,3 @@
-/********************************************************************
- *  Wi-Fi Driver / Firmware Interaction Simulation (FreeRTOS)
- *  Enhanced Version: Dual Mutex (TX / RX), Locks remain in upper layer
- *
- *  Design Goal:
- *    - 模擬 Driver / Firmware 雙向資料流
- *    - 各自使用不同鎖 (xTxMutex / xRxMutex)
- *    - 維持 SDIO 抽象層乾淨，方便報告邏輯層與鎖控制
- ********************************************************************/
-
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
@@ -15,13 +5,11 @@
 #include <string.h>
 #include <stdint.h>
 
-/* ========================= 系統參數 ========================= */
 #define RING_SIZE         8
 #define WIFI_TX_PERIOD    300
 #define FW_PROC_TIME      150
 #define FW_IDLE_TIMEOUT   500
 
-/* ========================= 資料結構 ========================= */
 typedef struct {
     uint8_t  valid;
     uint32_t len;
@@ -39,25 +27,22 @@ typedef struct {
     char payload[64];
 } wifi_pkt_t;
 
-/* ========================= 全域變數 ========================= */
 static dma_ring_t tx_ring;  // Driver → FW
 static dma_ring_t rx_ring;  // FW → Driver
 
 static SemaphoreHandle_t xIRQ_Sem;   // 模擬 IRQ
-static SemaphoreHandle_t xTxMutex;   // TX Ring 保護鎖
-static SemaphoreHandle_t xRxMutex;   // RX Ring 保護鎖
+static SemaphoreHandle_t xTxMutex;   // TX Ring Lock 
+static SemaphoreHandle_t xRxMutex;   // RX Ring Lock
 
 static volatile uint8_t irq_masked = 0;
 static volatile uint8_t fw_sleep = 0;
 static uint32_t sys_time_ms = 0;
 
-/* ========================= 輔助函式 ========================= */
 static inline void print_time(const char *tag)
 {
     printf("[T=%03lu ms] %s\n", (unsigned long)sys_time_ms, tag);
 }
 
-/* ========================= DMA Ring 操作 ========================= */
 static int dma_push(dma_ring_t *r, uint8_t *buf, uint32_t len)
 {
     uint8_t next = (r->head + 1) % RING_SIZE;
@@ -82,7 +67,6 @@ static int dma_pop(dma_ring_t *r, uint8_t **buf, uint32_t *len)
     return 0;
 }
 
-/* ========================= SDIO 抽象層 ========================= */
 static int sdio_write(uint8_t *data, uint32_t len) {
     return dma_push(&tx_ring, data, len);
 }
@@ -91,7 +75,6 @@ static int sdio_read(uint8_t **buf, uint32_t *len) {
     return dma_pop(&rx_ring, buf, len);
 }
 
-/* ========================= Driver TX Task ========================= */
 static void vWiFiDriverTx(void *p)
 {
     uint32_t seq = 0;
@@ -100,7 +83,7 @@ static void vWiFiDriverTx(void *p)
         pkt->seq = seq++;
         snprintf(pkt->payload, sizeof(pkt->payload), "TX Packet #%lu", (unsigned long)pkt->seq);
 
-        /* 🟦 使用 TX Mutex 保護 TX Ring */
+        /*  使用 TX Mutex 保護 TX Ring */
         xSemaphoreTake(xTxMutex, portMAX_DELAY);
         if (sdio_write((uint8_t *)pkt, sizeof(wifi_pkt_t)) == 0)
             print_time("[Driver] TX → FW");
@@ -123,7 +106,6 @@ static void vWiFiDriverTx(void *p)
     }
 }
 
-/* ========================= Firmware Task ========================= */
 static void vFirmwareProc(void *p)
 {
     uint8_t *buf;
@@ -133,7 +115,7 @@ static void vFirmwareProc(void *p)
     TickType_t last_active = xTaskGetTickCount();
 
     for (;;) {
-        /* 🟦 取 TX Ring 資料 */
+        /*  讀取 TX Ring 資料 */
         xSemaphoreTake(xTxMutex, portMAX_DELAY);
         if (dma_pop(&tx_ring, &buf, &len) == 0) {
             fw_sleep = 0;  // Wake up
@@ -145,7 +127,7 @@ static void vFirmwareProc(void *p)
             vTaskDelay(pdMS_TO_TICKS(FW_PROC_TIME));
             sys_time_ms += FW_PROC_TIME;
 
-            /* 🟦 產生 ACK 並放入 RX Ring */
+            /* 產生 ACK 並放入 RX Ring */
             ack = pvPortMalloc(sizeof(wifi_pkt_t));
             ack->seq = pkt->seq;
             snprintf(ack->payload, sizeof(ack->payload), "ACK #%lu", (unsigned long)pkt->seq);
@@ -176,7 +158,6 @@ static void vFirmwareProc(void *p)
     }
 }
 
-/* ========================= Bottom Half 處理 ========================= */
 static void vDriverBottomHalf(void *p)
 {
     uint8_t *buf;
@@ -187,7 +168,7 @@ static void vDriverBottomHalf(void *p)
         if (xSemaphoreTake(xIRQ_Sem, portMAX_DELAY) == pdTRUE) {
             irq_masked = 1; // 模擬中斷期間關閉中斷
 
-            /* 🟦 Driver 從 RX Ring 收取 ACK */
+            /*  Driver 從 RX Ring 收取 ACK */
             xSemaphoreTake(xRxMutex, portMAX_DELAY);
             if (sdio_read(&buf, &len) == 0) {
                 pkt = (wifi_pkt_t *)buf;
@@ -202,7 +183,6 @@ static void vDriverBottomHalf(void *p)
     }
 }
 
-/* ========================= main() ========================= */
 int main(void)
 {
     memset(&tx_ring, 0, sizeof(tx_ring));
