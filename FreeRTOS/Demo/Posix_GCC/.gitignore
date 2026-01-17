@@ -2,3 +2,18 @@
 build/
 src/FreeRTOS
 src/FreeRTOS-Plus
+
+*.o
+*.d
+*.elf
+*.bin
+*.map
+compile_commands.json
+.vscode/
+
+# 忽略暫存快取
+.cache/
+
+# 忽略手動備份檔 (以後靠 Git 就好)
+*_backup*
+*.bak
